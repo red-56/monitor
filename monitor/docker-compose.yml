@@ -1,0 +1,98 @@
+version: '3'
+
+services:
+
+  prometheus:
+    image: prom/prometheus:v2.11.1
+    restart : always
+    container_name: prometheus
+    deploy:
+      replicas: 1
+    volumes:
+      - prometheus-data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alertmanager/alert.rules/alerts.rules.yml:/alertmanager/alert.rules/alerts.rules.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=365d'
+    network_mode: "host"
+
+  alertmanager:
+    image: prom/alertmanager:v0.18.0
+    restart : always
+    container_name: alertmanager
+    deploy:
+      replicas: 1
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - ./alertmanager/templates/default.tmpl:/etc/alertmanager/templates/default.tmpl
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    network_mode: "host"
+
+  grafana:
+    image: grafana/grafana:6.2.5
+    restart : always
+    container_name: grafana
+    environment:
+      - GF_PATHS_CONFIG=/etc/grafana/grafana.ini
+    deploy:
+      replicas: 1
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    network_mode: "host"
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.14.0
+    restart : always
+    container_name: blackbox_exporter
+    deploy:
+      replicas: 1
+    volumes:
+    - ./blackbox:/config
+    network_mode: "host"
+
+  node_exporter:
+    image: prom/node-exporter:v0.18.1
+    restart : always
+    container_name: node_exporter
+    deploy:
+      replicas: 1
+    network_mode: "host"
+
+  promteams:
+    image: quay.io/prometheusmsteams/prometheus-msteams
+    restart : always
+    container_name: promteams
+    ports:
+      - "2000:2000"
+    deploy:
+      replicas: 1
+    environment:
+      - TEAMS_INCOMING_WEBHOOK_URL=https://outlook.office.com/webhook/b9186ba3-29ad-4ed7-a459-2b9796b6948b@901cb4ca-b862-4029-9306-e5cd0f6d9f86/IncomingWebhook/3d937ced0e77416c9966bf2a366b4900/94e73537-0b88-4676-bf0f-03bc408e981d
+      - TEAMS_REQUEST_URI=alertmanager
+    network_mode: "host"
+  
+  postgres-exporter:
+    image: wrouesnel/postgres_exporter:v0.8.0
+    restart: always
+    environment:
+      - DATA_SOURCE_URI=default-group1-database.francecentral.cloudapp.azure.com:5432/postgres?sslmode=disable
+      - DATA_SOURCE_USER=postgres
+      - DATA_SOURCE_PASS=postgres
+  
+  redis-exporter:
+    image: oliver006/redis_exporter
+    command: -redis.addr redis://default-group1-database.francecentral.cloudapp.azure.com:6379
+    ports:
+      - 9121:9121
+volumes:
+  prometheus-data:
+  grafana-data:

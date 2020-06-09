@@ -1,0 +1,23 @@
+global:
+  resolve_timeout: 10s
+
+receivers:
+- name: prometheus-msteams
+  webhook_configs:
+  - url: "http://localhost:2000/alertmanager"
+    send_resolved: true
+
+route:
+  group_by:
+  - job
+  group_interval: 10s
+  group_wait: 10s
+  receiver: prometheus-msteams
+  repeat_interval: 1h
+  routes:
+  - match:
+      alertname: Watchdog
+    receiver: prometheus-msteams
+
+templates:
+  - '/etc/alertmanager/templates/default.tmpl'                        # <-- Template en go pour l'alerte slack, vous pouvez à peu près tout faire
